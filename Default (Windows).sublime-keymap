@@ -1,0 +1,15 @@
+[
+	{ "keys": ["ctrl+k", "m"], "command": "mark_copy" },
+	{ "keys": ["ctrl+k", "n"], "command": "mark_copy", "args": {"add": false} },
+	{ "keys": ["alt+enter"], "command": "copy_line" },
+	{ "keys": ["up"], "command": "copy_line", "args": {"cmd": "hist_up"}, "context":
+		[
+			{ "key": "CopyLine" }
+		]
+	},
+	{ "keys": ["down"], "command": "copy_line", "args": {"cmd": "hist_down"}, "context":
+		[
+			{ "key": "CopyLine" }
+		]
+	}
+]
