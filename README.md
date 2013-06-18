@@ -1,10 +1,12 @@
-# Sublime Text CopyLine Package helping to prevent errors when duplicating a line.  A common mistake during programming.
+# Sublime Text CopyLine Package to copy a line and query for replacement text of marked fields.
 
 ## Install
 
     $ https://github.com/GuyCarver/CopyLine
 
 ## Instructions
+
+A common mistake in programming is to copy and repeat a line making minor changes to each line but forgetting to change a field.
 
 This package is used to mark sections of text on a line and query for replacement text when the line is copied.
 
