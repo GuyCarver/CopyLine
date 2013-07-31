@@ -98,10 +98,16 @@ class CopyLineCommand( sublime_plugin.TextCommand ) :
 
     insertr = None
 
-    #if copyline regions not empty instert at cursor anc copy from points.
+    #if copyline regions not empty insert at cursor and copy from points.
     if sels :
       insertr = vw.sel()[0]
       copyPoint = sels[0].begin()
+      # If insertr is on same line as copyPoint then move to next line.
+      r1, c1 = vw.rowcol(insertr.begin())
+      r2, c2 = vw.rowcol(copyPoint)
+      if r1 == r2 :
+        tp = vw.text_point(r1 + 1, 0)
+        insertr = sublime.Region(tp, tp)
     else: #If no copyline regions just use the regular regions.
       sels = [ s for s in vw.sel() ]
       #assume 1st item in list is on the copy line.
