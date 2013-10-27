@@ -35,6 +35,42 @@ import sublime, sublime_plugin
 import os, functools, collections
 from Edit.edit import Edit
 
+class MarkCollateCommand( sublime_plugin.TextCommand ) :
+  def run( self, edit, add = True ) :
+    vw = self.view
+    if add :
+      currs = vw.get_regions("collate")
+
+      sels = vw.sel()
+      getsel = lambda x : x if not x.empty() else vw.full_line(x)
+      rs = currs + [ getsel(s) for s in sels ]
+
+      if len(rs) :
+        vw.add_regions("collate", rs, "selection", "bookmark")
+    else:
+      vw.erase_regions("collate")
+
+def DoCollate( vw, edit ) :
+  currs = vw.get_regions("collate")
+
+  if len(currs) :
+    currs.reverse()
+  else:
+    getsel = lambda x : x if not x.empty() else vw.full_line(x)
+    currs = [ getsel(s) for s in vw.sel() ]
+
+  toInsert = [ vw.substr(c) for c in currs ]
+
+  for s in vw.sel() :
+    #If selection empty then insert at beginning of line.
+    insertPoint = s.begin() if not s.empty() else vw.full_line(s.begin()).begin()
+    for s in toInsert :
+      vw.insert(edit, insertPoint, s)
+
+class CollateCommand( sublime_plugin.TextCommand ) :
+  def run( self, edit ) :
+    DoCollate(self.view, edit)
+
 class MarkCopyCommand( sublime_plugin.TextCommand ) :
   def run( self, edit, add = True ) :
     vw = self.view
@@ -165,8 +201,11 @@ class CopyLineCommand( sublime_plugin.TextCommand ) :
 
   def run( self, edit, cmd = None, onevalue = False ) :
     if cmd == None : #If no special command just copy the line.
-      CopyLineCommand.Active = self
-      self.DoCopy(edit, onevalue)
+      if len(self.view.get_regions("copyline")) :
+        CopyLineCommand.Active = self
+        self.DoCopy(edit, onevalue)
+      else:
+        DoCollate(self.view, edit)
     else: #Otherwise try and run special command on active view.
       theCommand = CopyLineCommand.Commands[cmd]
       if theCommand and CopyLineCommand.Active != None:
