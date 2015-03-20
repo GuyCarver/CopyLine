@@ -1,9 +1,9 @@
 [
 	{ "keys": ["alt+m"], "command": "mark_copy" },
-	{ "keys": ["alt+shift+3"], "command": "mark_copy" },
+	{ "keys": ["alt+shift+m"], "command": "mark_copy", "args": {"add": false} },
 	{ "keys": ["alt+shift+1"], "command": "mark_collate" },
 	{ "keys": ["alt+shift+2"], "command": "mark_collate", "args": {"add": false} },
-	{ "keys": ["alt+shift+m"], "command": "mark_copy", "args": {"add": false} },
+	{ "keys": ["alt+shift+3"], "command": "mark_copy" },
 	{ "keys": ["alt+shift+4"], "command": "mark_copy", "args": {"add": false} },
 	{ "keys": ["alt+enter"], "command": "copy_line" },
 	{ "keys": ["alt+shift+enter"], "command": "copy_line", "args": {"onevalue": true} },
