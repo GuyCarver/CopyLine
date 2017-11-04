@@ -6,15 +6,5 @@
 	{ "keys": ["alt+shift+3"], "command": "mark_copy" },
 	{ "keys": ["alt+shift+4"], "command": "mark_copy", "args": {"add": false} },
 	{ "keys": ["alt+enter"], "command": "copy_line" },
-	{ "keys": ["alt+shift+enter"], "command": "copy_line", "args": {"onevalue": true} },
-	{ "keys": ["up"], "command": "copy_line", "args": {"cmd": "hist_up"}, "context":
-		[
-			{ "key": "CopyLine" }
-		]
-	},
-	{ "keys": ["down"], "command": "copy_line", "args": {"cmd": "hist_down"}, "context":
-		[
-			{ "key": "CopyLine" }
-		]
-	}
+	{ "keys": ["alt+shift+enter"], "command": "copy_line", "args": {"onevalue": true} }
 ]

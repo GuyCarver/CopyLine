@@ -32,8 +32,7 @@
 #----------------------------------------------------------------------
 
 import sublime, sublime_plugin
-import os, functools, collections
-from Edit.edit import Edit
+import functools
 
 class MarkCollateCommand( sublime_plugin.TextCommand ) :
   def run( self, edit, add = True ) :
@@ -82,205 +81,75 @@ class MarkCopyCommand( sublime_plugin.TextCommand ) :
       if len(rs) == 0 :
         rs = [ vw.word(vw.sel()[0].begin()) ]
 
-      rs = currs + rs
-
-      copyLine, _ = vw.rowcol(rs[0].begin())
-      self.showMessage = False
-
-      def OnLine( s ) :
-        row, _ = vw.rowcol(s.begin())
-        ok = (row == copyLine)
-        self.showMessage |= ok
-        return ok
-
-      #Filter out any selections not on same line.
-      rs = [ s for s in rs if OnLine(s) ]
-
       if len(rs) :
         vw.add_regions("copyline", currs + rs, "selection", "dot")
 
-      if self.showMessage :
-        sublime.status_message("selection(s) not on copy line.")
     else:
       vw.erase_regions("copyline")
 
 class CopyLineCommand( sublime_plugin.TextCommand ) :
-  Active = None                 #Currently active text input.
-  Commands = { "" : None }      #Dictionary of commands.
-
-  def __init__( self, aView ) :
-    super(CopyLineCommand, self).__init__(aView)
-    self.inputView = None
-    self.History = collections.deque([""], 21) #20 entries but don't count the "".
-    self.HistIndex = -1
-
-  def IsInputView( self, aView ) :
-    return (aView and self.inputView and aView.id() == self.inputView.id())
-
-  def FindInsertRegion( self, copyPoint, aRegions ) :
-    row, _ = self.view.rowcol(copyPoint)
-    for r in aRegions :
-      rrow, _ = self.view.rowcol(r.begin())
-      if rrow != row :
-        return r
-
-    return None
-
-  def DoCopy( self, edit , onevalue ) :
-    self.HistIndex = -1
+  def run( self, edit, cmd = None, onevalue = False ) :
     vw = self.view
     sels = vw.get_regions("copyline")
-    self.OneValue = onevalue;
+    viewSel = vw.sel()[0]
 
-    insertr = None
-
-    #if copyline regions not empty insert at cursor and copy from points.
     if sels :
-      insertr = vw.sel()[0]
-      copyPoint = sels[0].begin()
-      # If insertr is on same line as copyPoint then move to next line.
-      r1, c1 = vw.rowcol(insertr.begin())
-      r2, c2 = vw.rowcol(copyPoint)
-      if r1 == r2 :
-        tp = vw.text_point(r1 + 1, 0)
-        insertr = sublime.Region(tp, tp)
-    else: #If no copyline regions just use the regular regions.
-      sels = [ s for s in vw.sel() ]
-      #assume 1st item in list is on the copy line.
-      copyPoint = sels[0].begin()
-      slen = len(sels)
-      if slen > 1 :
-        # If more than 2 items assume 2nd item is on the copy line.  Most likely
-        # either the 1st or last item will be the insert point and on a separate line.
-        if slen > 2 :
-          copyPoint = sels[1].begin()
+      #reduce our regions to a single region encompassing them all.
+      src = functools.reduce(lambda a , b: a.cover(b), sels)
 
-        insertr = FindInsertRegion(vw, copyPoint, sels)
-
-        #if we found an insert point remove from the list of copy regions.
-        if insertr != None :
-          sels.remove(insertr)
-
-    #Get the full line for the point we have selected to copy.
-    copyLine = vw.full_line(copyPoint)
-    #start point of the line used to adjust regions after string insert.
-    srcStart = copyLine.begin()
-
-    #Get the string for the line.
-    str = vw.substr(copyLine)
-
-    #If no insert point, set at the beginning of the copy line
-    # so it will adjust the cursor position to the next line
-    # but modify the values on the next line.
-    if insertr == None :
-      modifyPoint = copyLine.end()
-      insertPos = srcStart
-    else: #otherwise just insert and modify at the same location.
-      modifyPoint = insertr.begin()
-      insertPos = modifyPoint
-
-    #Insert the strings.
-    vw.insert(edit, insertPos, str)
-
-    #if no selections or only the cursor then just exit after we copy the line.
-    if not sels or (len(sels) == 1 and sels[0].empty()) :
-      return
-
-    #Reverse the list because we need to modify in reverse orde.
-    # If we don't a change in length for the fields would cause subsequent
-    # fields to replace the wrong text.
-    sels.reverse()
-
-    #Need to find out how much to adjust the regions to put them on the inserted line.
-    adj = modifyPoint - srcStart
-
-    #Create new reagions adjusted by the change in the buffer from the line we inserted.
-    selList = [ sublime.Region(r.begin() + adj, r.end() + adj) for r in sels ]
-
-    self.Replace( selList, None )
-
-  def run( self, edit, cmd = None, onevalue = False ) :
-    if cmd == None : #If no special command just copy the line.
-      if len(self.view.get_regions("copyline")) :
-        CopyLineCommand.Active = self
-        self.DoCopy(edit, onevalue)
+      if viewSel.contains(src) : #If have a selection then try and use it for the source
+        src = vw.full_line(viewSel)
+        destPos = src.b         #Insert after selection
       else:
-        DoCollate(self.view, edit)
-    else: #Otherwise try and run special command on active view.
-      theCommand = CopyLineCommand.Commands[cmd]
-      if theCommand and CopyLineCommand.Active != None:
-        theCommand(CopyLineCommand.Active)
+        src = vw.full_line(src)
+        destPos = -1            #Just insert at the current selection.
 
-  def UpdateHistory( self, aEntry ) :
-    if len(aEntry) : #Don't do anything with empty entries.
-      try:
-        self.History.remove(aEntry)
-      except:
-        pass
-      self.History.appendleft(aEntry)
-      self.HistIndex = -1
+      srctxt = vw.substr(src)
+      curpos = 0
+      ind = 0
+      newtext = ""
+      #Replace all of the copyline marks with template stuff.
+      for s in sels :
+        a = s.a - src.a
+        b = s.b - src.b
+        newtext += srctxt[curpos:a] #Add text between tags
+        #if replacing all tags with same value just add the
+        # same index.  But still do ${0:oldtext} for 1st instance.
+        if onevalue and ind > 0:
+          newtext += '$0'
+        else:
+          oldtext = srctxt[a:b]
+          newtext += '${' + str(ind) + ':' + oldtext + '}'
+        ind += 1
+        curpos = b
 
-  def Replace( self, aList, aReplacement ) :
-    if len(aList) : #If anyting in list
-      #If no replacement given we are just starting so skip replace.
-      if aReplacement != None :
-        self.view.erase_regions("cpy")    #Clear cpy region from previous query.
-        self.UpdateHistory(aReplacement)  #Add new text to history.
-        with Edit(self.view) as edit :
-          if self.OneValue:               #If single input value for all marks.
-            for r in aList :  #Iterate marks and replace with text.
-              edit.replace(r, aReplacement)
-              aList = []                  #Clear list as we are done.
-          else: #Just process 1 entry.
-            r = aList[0]                  #Get 1st entry in list.
-            edit.replace(r, aReplacement) #Replace text.
-            aList = aList[1:]             #Remove entry from the list.
+      newtext += srctxt[curpos:] #Add any remaining string.
 
-      if len(aList) : #If anyting in list then request replacement text.
-        r = aList[0]
-        txt = self.view.substr(r)         #Get text for replacement.
+      #Insert snippet
+      if destPos != -1 :
+        vw.sel().clear()
+        vw.sel().add(sublime.Region(destPos, destPos))
+      #insert the snippet.
+      vw.run_command("insert_snippet", {"contents": newtext})
+    else: #No CopyLine tags so just copy the current line.
+      print("No Lines")
+      for s in vw.sel() :
+        sgrab = self.prevfullline(s)
+        src = vw.full_line(sgrab)
+        txt = vw.substr(src)
+        destPos = sgrab.end() + 1
+        vw.insert(edit, destPos, txt)
+        vw.sel().clear()
+        vw.sel().add(sublime.Region(destPos, destPos))
 
-        #Mark text to replace so we can see where it is at.
-        self.view.add_regions("cpy", aList if self.OneValue else [r], "green")
-        #Open input view.
-        self.inputView = self.view.window().show_input_panel("Set:",
-          txt, functools.partial(self.Replace, aList), None, self.OnCancel)
-        self.inputView.set_name("CopyLine")
-        self.inputView.run_command("select_all")
-      else:
-        CopyLineCommand.Active = None
+  def prevfullline( self, aSeg ) :
+    p = aSeg.end()
+    #if a selection then make sure we don't include the last line if the cursor
+    # is at the beginning of it.
+    if aSeg.size() > 1 :
+      p -= 1
 
-  def OnCancel( self ) :
-    CopyLineCommand.Active = None
-
-  def MoveHist( self, aDir ) :
-    #Wrap the index around the history queue.
-    self.HistIndex = (self.HistIndex + aDir) % (len(self.History) - 1)
-    #Get history string from queue.
-    hstr = self.History[self.HistIndex]
-    #If not empty replace text in view with history.
-    if len(hstr) :
-      vw = CopyLineCommand.Active.inputView
-      with Edit(vw) as edit:
-        edit.replace(sublime.Region(0, vw.size()), hstr)
-
-  def HistUp( self ) :
-    self.MoveHist(1)
-
-  def HistDown( self ) :
-    self.MoveHist(-1)
-
-  @classmethod
-  def IsActive( aClass, aView, aKey, aOperator, aOperand ) :
-    ###Return true if the given view is the copyline inputpanel.
-    return (aKey == "CopyLine" and aClass.Active and aClass.Active.IsInputView(aView))
-
-#List of run command types (Note show is not in this list  It is parsed separately).
-CopyLineCommand.Commands = { "hist_up" : CopyLineCommand.HistUp,
-                             "hist_down" : CopyLineCommand.HistDown,
-                           }
-
-class RecipientEventListener( sublime_plugin.EventListener ) :
-  def on_query_context( self, aView, aKey, aOperator, aOperand, match_all ) :
-    return(CopyLineCommand.IsActive(aView, aKey, aOperator, aOperand))
-
+    lastLine = self.view.line(p)
+    e = lastLine.end()
+    b = min(aSeg.begin(), e)
+    return sublime.Region(b, e)
