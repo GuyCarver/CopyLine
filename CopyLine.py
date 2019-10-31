@@ -107,7 +107,7 @@ class CopyLineCommand( sublime_plugin.TextCommand ) :
       srctxt = vw.substr(src)
       curpos = 0
       ind = 0
-      newtext = ""
+      newtext = "\n"
       #Replace all of the copyline marks with template stuff.
       for s in sels :
         a = s.a - src.a
